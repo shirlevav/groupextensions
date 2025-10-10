@@ -1,0 +1,296 @@
+############# Polycylic Extensions (guaranteed to find an extension for centerless kernels)
+##
+## pcext(G,N,chi, [testit])
+##
+## Input: G finite polycyclic group,
+##        N finite polycyclic group,
+##        chi a record with entries hom:Aut(N)->Out(N) and chi:G->Out(N)
+##        testit: optional (true or false, false by default)
+##
+## Output: One group E (if it exists) such that E/N is isomorphic to
+##         G with the induced coupling chi. Unique, up to equivalence, if N centerless.
+##
+pcext := function(arg)
+local chi, pg, pn, reln, FGgens, FG, FNgens, FN, relg, hom, tail,
+      relorders, F, coll, maplist, i, j, n, m, nmap, gmap, chosenlifts, LHS, RHS,
+      G, N, chirec, testit, my_mapwords, GN, M, tmp, acts, isoN, chi2, g, isoNi, f;
+
+   if Length(arg) = 3 then
+      G := arg[1]; N := arg[2]; chirec := arg[3]; testit := false;
+   else
+      G := arg[1]; N := arg[2]; chirec := arg[3]; testit := arg[4];
+   fi;
+
+   my_mapwords := function(w, pcgs, im)
+   local exp, i, res;
+      exp := ExponentsOfPcElement(pcgs,w);
+      res := im[1]^0;
+      for i in [1..Size(exp)] do res := res*im[i]^exp[i]; od;
+      return res;
+   end;
+   
+   G    := Image(IsomorphismPcGroup(G));
+   N    := Image(IsomorphismPcGroup(N));
+   hom  := chirec.hom;
+   chi  := chirec.chi;
+   pg   := Pcgs(G);;
+   pn   := Pcgs(N);;
+   relg := RelativeOrders(pg);;
+   reln := RelativeOrders(pn);;
+   relorders := Concatenation(relg,reln);
+
+   F      := FreeGroup(Length(relorders)); 
+   coll   := SingleCollector(F, relorders);
+   FGgens := GeneratorsOfGroup(F){[1..Length(pg)]};
+   FNgens := GeneratorsOfGroup(F){[Length(pg)+1..Length(pg)+Length(pn)]};
+   FG     := Subgroup(F, FGgens);
+   FN     := Subgroup(F, FNgens);
+
+   nmap   := function(n)
+   local exp, i;
+      exp := ExponentsOfPcElement(pn,n);
+      return Product(List([1..Size(pn)],i-> FNgens[i]^exp[i]));
+   end;
+
+   gmap   := function(g)
+   local exp, i;
+      exp := ExponentsOfPcElement(pg,g);
+      return Product(List([1..Size(pg)],i-> FGgens[i]^exp[i]));
+   end;
+
+   chosenlifts := List(pg, i -> PreImagesRepresentative(hom,ImageElm(chi, i))); 
+	   
+   if Size(Center(N)) > 1 then
+      Display("WARNING: N is not centerless, checking if chi gives rise to an extension of this form.");
+	  #CHECK G power relations
+		for f in [1..Length(FGgens)] do
+			for i in [1..Length(pg)] do
+				LHS := ConjugatorOfConjugatorIsomorphism(
+				Inverse(chosenlifts[f])
+				* Inverse(my_mapwords((pg[i])^relg[i], pg ,chosenlifts))
+				* (my_mapwords(pg[i], pg ,chosenlifts))^relg[i]
+				* chosenlifts[f]
+				);
+				RHS := ConjugatorOfConjugatorIsomorphism(
+				Inverse(my_mapwords((pg[i])^relg[i], pg ,chosenlifts))
+				* (my_mapwords(pg[i], pg ,chosenlifts))^relg[i]
+				)^chosenlifts[f];
+					if not LHS=RHS then
+						Error("chi corresponds to non-zero obstruction.");
+					fi;
+			od;
+		od;
+	
+	  #CHECK G conjugate relations 
+		for f in [1..Length(FGgens)] do
+			for i in [1..Size(relg)-1] do
+				for j in [i+1..Size(relg)] do
+					LHS := ConjugatorOfConjugatorIsomorphism(
+					Inverse(chosenlifts[f])
+					* Inverse(my_mapwords((pg[j]^pg[i]), pg ,chosenlifts))
+					* (Inverse(my_mapwords(pg[i], pg ,chosenlifts))
+					* (my_mapwords(pg[j], pg ,chosenlifts))
+					* (my_mapwords(pg[i], pg ,chosenlifts)))
+					* chosenlifts[f]);
+					RHS := ConjugatorOfConjugatorIsomorphism(
+					Inverse(my_mapwords((pg[j]^pg[i]), pg ,chosenlifts))
+					* (Inverse(my_mapwords(pg[i], pg ,chosenlifts))
+					* (my_mapwords(pg[j], pg ,chosenlifts))
+					* (my_mapwords(pg[i], pg ,chosenlifts)))
+					)^chosenlifts[f];
+					if not LHS=RHS then
+						Error("chi corresponds to non-zero obstruction.");
+					fi;
+				od;
+			od;
+		od;
+   fi;
+
+   ############## DEFINING N RELATIONS
+
+   #N conjugate relations
+   for n in [1..Length(pn)-1] do
+      for m in [n+1..Length(pn)] do
+         SetConjugate(coll,Length(pg)+m, Length(pg)+n, nmap(pn[m]^pn[n]));
+      od;
+   od;
+
+   #N power relations
+   for i in [1..Length(pn)] do
+      SetPower(coll, Length(pg)+i, nmap(pn[i]^reln[i]));
+   od;
+
+   ############## DEFINING LIFT ACTION
+
+   for n in [1..Length(pn)] do
+      for m in [1..Length(pg)] do
+         SetConjugate(coll, Length(pg)+n, m, nmap(ImageElm(chosenlifts[m],pn[n])));; 
+      od;
+   od;
+
+   ############## DEFINING TAILS
+
+   #G power relations with tails
+   for i in [1..Length(pg)] do
+      tail := ConjugatorOfConjugatorIsomorphism(Inverse(my_mapwords((pg[i])^relg[i], pg ,chosenlifts))
+              * (my_mapwords(pg[i], pg ,chosenlifts))^relg[i]);
+      SetPower(coll, i, gmap(pg[i]^relg[i])*nmap(tail));
+   od;
+
+   #G conjugate relations with tails
+   for i in [1..Size(relg)-1] do
+      for j in [i+1..Size(relg)] do
+         tail := ConjugatorOfConjugatorIsomorphism(Inverse(my_mapwords((pg[j]^pg[i]), pg ,chosenlifts))
+	         * (Inverse(my_mapwords(pg[i], pg ,chosenlifts))*(my_mapwords(pg[j], pg ,chosenlifts))*(my_mapwords(pg[i], pg ,chosenlifts))));
+         SetConjugate(coll, j, i, gmap(pg[j]^pg[i])*nmap(tail));
+      od;
+   od;
+   
+  
+   if not testit then
+      return GroupByRwsNC(coll);
+   else
+      Display("Test result: extension and coupling");
+      GN    := GroupByRws(coll); ##if this works, then group is consistent, and you have extension
+      tmp   := List(Pcgs(GN){[Size(pg)+1..Size(pg)+Size(pn)]});
+      M     := Subgroup(GN, tmp);
+      isoN  := GroupHomomorphismByImages(N,M,Pcgs(N),tmp);
+      isoNi := GroupHomomorphismByImages(M,N,tmp,Pcgs(N));
+      if not IsNormal(GN,M) or fail=isoN or not Size(GN)=Size(G)*Size(N) then
+         Error("oops...");
+      fi;
+      acts := [];
+      for g in Pcgs(GN){[1..Size(pg)]} do
+         Add(acts,Image(hom,isoN*GroupHomomorphismByImages(M,M,tmp,List(tmp,n->n^g))*isoNi));
+      od;
+      chi2 := GroupHomomorphismByImages(G,Image(hom),Pcgs(G),acts);
+      if not chi2 = chi then Error("coupling not correct."); fi;
+      return GN;
+   fi;
+
+end;;
+
+
+### 
+
+
+########## OTHER FUNCTIONS
+
+
+#Find options for chi
+#Input: G, N
+#Output: Classes of couplings, printed number of couplings
+couplings := function(G,N)
+local autN, innN, hom, outN, chi;
+   autN := AutomorphismGroup(N);
+   innN := InnerAutomorphismsAutomorphismGroup(autN);
+   hom  := NaturalHomomorphismByNormalSubgroup(autN,innN);
+   outN := Image(hom);
+   chi  := AllHomomorphismClasses(G,outN);
+   Print("There are ", Length(chi), " classes of couplings.", "\n");
+   return chi;
+end;;
+
+
+
+#Find centerless polycyclic groups of certain size using small group library
+#Input: size
+#Output: id of centerless pc groups of that size
+centerless := function(size)
+local length, i, group;
+   length := Length(AllSmallGroups(size));
+   for i in [1..length] do
+      group:= SmallGroup([size,i]);
+      if Size(Center(group)) = 1 then
+         if IsPcGroup(group) = true then Print([size,i]); fi;
+      fi;
+   od;
+end;
+
+#Find polycyclic groups of certain size using small group library
+#Input: size
+#Output: id of pc groups of that size
+pcgroups := function(size)
+local length, i, group;
+   length := Length(AllSmallGroups(size));
+   for i in [1..length] do
+      group := SmallGroup([size,i]);
+      if IsPcGroup(group) = true then Print([size,i]);fi;
+   od;
+end;
+
+
+
+##
+## input: finite polycyclic G, N, with Z(N)=1
+## constructs and tests the extensions of G by N for all the couplings (up to classes) G-->Out(N) 
+##
+testall := function(G,N)
+local autN, innN, outN, chi, hom,i;
+   G    := Image(IsomorphismPcGroup(G));
+   N    := Image(IsomorphismPcGroup(N));
+   autN := AutomorphismGroup(N);
+   innN := InnerAutomorphismsAutomorphismGroup(autN);
+   hom  := NaturalHomomorphismByNormalSubgroup(autN,innN);
+   outN := Image(hom);
+   chi  := AllHomomorphismClasses(G,outN);
+   for i in chi do pcext(G,N,rec(hom:=hom, chi:=i),true); od;
+end;   
+
+##
+## input: finite polycyclic G, N, with Z(N)=1, list of elements i such that each coupling = AllHomomorphismClasses(G,outN)[i]
+## constructs and tests one extension of G by N for the specified couplings
+##
+testsome := function(G,N,ilist)
+local autN, innN, outN, chi, hom, i;
+   autN := AutomorphismGroup(N);
+   innN := InnerAutomorphismsAutomorphismGroup(autN);
+   hom  := NaturalHomomorphismByNormalSubgroup(autN,innN);
+   outN := Image(hom);
+   chi  := AllHomomorphismClasses(G,outN);
+   for i in ilist do pcext(G,N,rec(hom:=hom, chi:=chi[i]),true); od;
+end;
+
+
+
+###### EXAMPLE CALCULATIONS
+G := SmallGroup([912,71]);;  #G is C3 x (C19 : QD16)
+N := SmallGroup([612,23]);;  #N is (C3 x C3) : (C17 : C4), has no center
+#We know there are 16 couplings of G and N using couplings(G,N).
+#Computing the 16 extensions corresponding to these couplings:
+testall(G,N);
+
+G := SmallGroup([714,3]);; #G is C7 : (C3 x D34)
+N := SmallGroup([816,187]);; #N is S3 x (C17 : C8), has no center
+testall(G,N);
+
+G := SmallGroup(216,155);;
+N := SmallGroup(216,155);; #G, N are (C3 x C3 x C3) : C8
+testall(G,N);
+
+G := SmallGroup([612,23]);;
+N := SmallGroup([612,23]);; #G, N are (C3 x C3) : (C17 : C4)
+testall(G,N);
+
+G:=SmallGroup([41238,18]);; #G is C29 x (S3 x (C79 : C3))
+N:=SmallGroup([45210,24]);; #N is C3 : (C11 : (C5 x D274))
+testall(G,N);
+
+###### EXAMPLES WHERE COUPLINGS DO NOT CORRESPOND TO EXTENSIONS 
+G:=SmallGroup([250,1]);;
+N:=SmallGroup([352,9]);;
+testall(G,N); ##After the error, returning to the function demonstrates that the constructed group is not confluent.
+
+
+G:=SmallGroup([350,1]);;
+N:=SmallGroup([352,5]);;
+testall(G,N); 
+
+G:=SmallGroup([1320,1]);;
+N:=SmallGroup([480,2]);;
+testall(G,N);
+
+## OTHERS
+G:=SmallGroup([23686,2]);
+N:=SmallGroup(34564,5);
+##Trouble computing AllHomomorphismClasses
