@@ -1,0 +1,172 @@
+############# Iterative Extension Method
+##
+## iteration(G,N,chi)
+##
+## Input: G finite polycyclic group,
+##        N finite polycyclic group,
+##        chi a record with entries hom:Aut(N)->Out(N) and chi:G->Out(N)
+##        
+##
+## Output: All isomorphism types of groups E (if any exist) such that E/N is isomorphic to
+##         G with the induced coupling chi. 
+##
+
+iteration:= function(arg)
+local G, N, pg, pn, series, factors, lpcgsn, chosenlifts, extlist, factorsize, pcgsn1, N_1, autN_1, actionlist, i, j, gaction, ghom, action,
+mats, M, fac, G2, extlisttemp, num, pcgsn2, N_2, autN_2, elm, action2, extensions, subhom, count, liftoptions, tuple,
+GN, tmp, isoN, isoNi, acts, chi2, hom, chi, matrices, it, ext, g, chirec, testit, extlistfinal, k;
+
+    G := arg[1]; N := arg[2]; chirec := arg[3]; testit := true;
+
+hom		:= chirec.hom;
+chi		:= chirec.chi;
+pg		:= Pcgs(G);
+pn		:= Pcgs(N);
+series	:=ElementaryAbelianSeries(N);
+factors	:=[1..(Length(series)-1)];
+#Apply(factors,i->series[i]/series[i+1]);
+Apply(factors,i->Image(NaturalHomomorphismByNormalSubgroup(series[i],series[i+1])));
+lpcgsn	:=Length(Pcgs(N));
+
+matrices  :=function(G,H,map)
+local gensg, gensh, elemaps, ele, j, k, columnkexponents, tempgens, marker, marknumber, matrices, tempmatrix;
+gensg 	:= Pcgs(G);
+gensh	  := Pcgs(H);
+matrices:=[];
+for k in [1..Length(gensg)] do;
+	tempmatrix:=NullMat(Length(gensh),Length(gensh),Z(Order(H)));
+	for j in [1..Length(gensh)] do;
+		columnkexponents:=[];
+		elemaps:= ImageElm(map,gensg[k]);
+		ele:= ImageElm(elemaps,gensh[j]);
+		for marker in [1..Length(gensh)] do;
+			tempgens:=ShallowCopy(gensh);
+			Remove(tempgens, marker);
+			marknumber:=0;
+			while not ele in Subgroup(H,tempgens) do
+				ele:= ele / gensh[marker];
+				marknumber:= marknumber+1;
+			od;
+			Add(columnkexponents,marknumber);
+			tempmatrix[marker][j]:=marknumber*Z(Order(H))^0; 
+		od;
+		Apply(columnkexponents, m -> m*Z(Order(H))^0);
+	od;
+	Add(matrices,tempmatrix);
+od;
+return rec(mats:=matrices);
+end;
+
+chosenlifts := List(pg, i -> PreImagesRepresentative(hom,ImageElm(chi, i)));
+count		:= 1;
+
+#FIRST STEP 
+factorsize	:= Length(Pcgs(factors[1]));
+pcgsn1		  := Pcgs(N){[factorsize+1..lpcgsn]};
+subhom		  := NaturalHomomorphismByNormalSubgroup(N,Subgroup(N,pcgsn1));
+N_1			    := Image(subhom);
+autN_1		  := AutomorphismGroup(N_1);
+
+actionlist  := [];
+	for i in [1..Length(Pcgs(G))] do
+		gaction  := [];
+		for j in [1..Length(Pcgs(N_1))] do
+			Add(gaction, ImageElm(subhom, ImageElm(chosenlifts[i],PreImagesRepresentative(subhom,Pcgs(N_1)[j]))));
+		od;
+		ghom:=GroupHomomorphismByImages(N_1,N_1,Pcgs(N_1),gaction);
+		Add(actionlist, ghom);
+	od;
+action:=GroupHomomorphismByImages(G,autN_1,Pcgs(G),actionlist);
+if action = fail then Error("oops"); fi;
+
+#Find the module structure of the first factor, then compute extensions using the established method.
+mats	:= matrices(G,N_1,action).mats;
+M     := GModuleByMats(mats,GF((Order(N_1))));
+extlist	:= Extensions(G,M);
+
+for fac in [2..Length(factors)] do 
+	count := count+factorsize;
+	extlisttemp := [];
+	factorsize  := Length(Pcgs(factors[fac]));
+	pcgsn2      := Pcgs(N){[factorsize+count..lpcgsn]};
+	subhom      := NaturalHomomorphismByNormalSubgroup(Subgroup(N,pcgsn1),Subgroup(N,pcgsn2));
+	N_2         := Image(subhom);
+	autN_2      := AutomorphismGroup(N_2);
+	for num in [1..Length(extlist)] do
+		G2 := extlist[num];
+		action2  := fail;
+		liftoptions := List(pg, i -> Elements(PreImages(hom,ImageElm(chi, i))));
+		it  := IteratorOfCartesianProduct(liftoptions);
+	
+		while action2 = fail do
+			tuple:=NextIterator(it);
+			chosenlifts:=List([1..Length(pg)], i->tuple[i]);
+	
+			actionlist:=[];
+			for i in [1..Length(Pcgs(G2))] do
+				gaction:=[];
+				if i < Length(Pcgs(G))+1 then
+					for j in [1..Length(Pcgs(N_2))] do
+						Add(gaction, ImageElm(subhom, ImageElm(chosenlifts[i],PreImagesRepresentative(subhom,Pcgs(N_2)[j]))));
+					od;
+				else
+					elm:=Pcgs(N)[i-Length(Pcgs(G))];
+					for j in [1..Length(Pcgs(N_2))] do
+						Add(gaction, ImageElm(subhom, PreImagesRepresentative(subhom,Pcgs(N_2)[j])^elm));
+					od;
+				fi;
+				ghom:=GroupHomomorphismByImages(N_2,N_2,Pcgs(N_2),gaction);
+				Add(actionlist, ghom);
+			od;
+			action2:=GroupHomomorphismByImages(G2,autN_2,Pcgs(G2),actionlist);
+			if IsDoneIterator(it) = true then action2:=true; fi;
+		od;
+		action2:=GroupHomomorphismByImages(G2,autN_2,Pcgs(G2),actionlist);
+		if not action2=fail then
+		Print(fac, "\n", RelatorsOfFpGroup(Image(IsomorphismFpGroup(G2))), "\n", StructureDescription(G2),"\n", action2, "\n");
+			mats  := matrices(G2,N_2,action2).mats;
+			M  := GModuleByMats(mats,GF((Order(N_2))));
+			extensions  := Extensions(G2,M);
+			extlisttemp := Concatenation(extlisttemp,extensions);
+		fi;
+	od;
+	extlist  := extlisttemp;
+pcgsn1  := ShallowCopy(pcgsn2);
+od;
+## Check that extensions are correct
+if not testit then
+	return extlist;
+else
+	extlistfinal:=[];
+	k:=0;
+	for ext in extlist do
+		k:=k+1;
+		i:=true;
+		Display("Test result: extension and coupling");
+		GN    := ext;
+		tmp   := List(Pcgs(GN){[Size(pg)+1..Size(pg)+Size(pn)]});
+		M     := Subgroup(GN, tmp);
+		isoN  := GroupHomomorphismByImages(N,M,Pcgs(N),tmp); #N must be the same as the attached group
+		if not IsNormal(GN,M) or fail=isoN or not Size(GN)=Size(G)*Size(N) then
+			Add(extlistfinal, k);
+			i:=false;
+		fi;
+		if not i=false then
+		acts := [];
+		isoNi := GroupHomomorphismByImages(M,N,tmp,Pcgs(N));
+		for g in Pcgs(GN){[1..Size(pg)]} do
+			Add(acts,Image(hom,isoN*GroupHomomorphismByImages(M,M,tmp,List(tmp,n->n^g))*isoNi));
+		od;
+		chi2 := GroupHomomorphismByImages(G,Image(hom),Pcgs(G),acts); #chi2 needs to be the same as chi
+		if not chi2 = chi then 
+		Add(extlistfinal, k);
+		fi;
+		fi;
+	od;
+	for k in [1..Length(extlistfinal)] do
+		Remove(extlist,extlistfinal[k]);
+		extlistfinal:=extlistfinal-1;
+	od;
+	return extlist;
+fi;
+end;
