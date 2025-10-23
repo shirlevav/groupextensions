@@ -16,7 +16,7 @@ local G, N, pg, pn, series, factors, lpcgsn, chosenlifts, extlist, factorsize, p
 mats, M, fac, G2, extlisttemp, num, pcgsn2, N_2, autN_2, elm, action2, extensions, subhom, count, liftoptions, tuple,
 GN, tmp, isoN, isoNi, acts, chi2, hom, chi, matrices, it, ext, g, chirec, testit, extlistfinal, k;
 
-    G := arg[1]; N := arg[2]; chirec := arg[3]; testit := true;
+    G := arg[1]; N := arg[2]; chirec := arg[3]; 
 
 hom		:= chirec.hom;
 chi		:= chirec.chi;
@@ -134,9 +134,6 @@ for fac in [2..Length(factors)] do
 pcgsn1  := ShallowCopy(pcgsn2);
 od;
 ## Check that extensions are correct
-if not testit then
-	return extlist;
-else
 	extlistfinal:=[];
 	k:=0;
 	for ext in extlist do
@@ -168,5 +165,4 @@ else
 		extlistfinal:=extlistfinal-1;
 	od;
 	return extlist;
-fi;
 end;
