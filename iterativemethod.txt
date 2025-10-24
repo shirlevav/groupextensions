@@ -22,9 +22,8 @@ hom		:= chirec.hom;
 chi		:= chirec.chi;
 pg		:= Pcgs(G);
 pn		:= Pcgs(N);
-series	:=ElementaryAbelianSeries(N);
-factors	:=[1..(Length(series)-1)];
-#Apply(factors,i->series[i]/series[i+1]);
+series	:= ElementaryAbelianSeries(N);
+factors	:= [1..(Length(series)-1)];
 Apply(factors,i->Image(NaturalHomomorphismByNormalSubgroup(series[i],series[i+1])));
 lpcgsn	:=Length(Pcgs(N));
 
@@ -64,7 +63,7 @@ count		:= 1;
 factorsize	:= Length(Pcgs(factors[1]));
 pcgsn1		  := Pcgs(N){[factorsize+1..lpcgsn]};
 subhom		  := NaturalHomomorphismByNormalSubgroup(N,Subgroup(N,pcgsn1));
-N_1			    := Image(subhom);
+N_1			  := Image(subhom);
 autN_1		  := AutomorphismGroup(N_1);
 
 actionlist  := [];
@@ -79,7 +78,7 @@ actionlist  := [];
 action:=GroupHomomorphismByImages(G,autN_1,Pcgs(G),actionlist);
 if action = fail then Error("oops"); fi;
 
-#Find the module structure of the first factor, then compute extensions using the established method.
+# find the module structure of the first factor, then compute extensions using the established method.
 mats	:= matrices(G,N_1,action).mats;
 M     := GModuleByMats(mats,GF((Order(N_1))));
 extlist	:= Extensions(G,M);
@@ -123,7 +122,6 @@ for fac in [2..Length(factors)] do
 		od;
 		action2:=GroupHomomorphismByImages(G2,autN_2,Pcgs(G2),actionlist);
 		if not action2=fail then
-		Print(fac, "\n", RelatorsOfFpGroup(Image(IsomorphismFpGroup(G2))), "\n", StructureDescription(G2),"\n", action2, "\n");
 			mats  := matrices(G2,N_2,action2).mats;
 			M  := GModuleByMats(mats,GF((Order(N_2))));
 			extensions  := Extensions(G2,M);
@@ -133,7 +131,7 @@ for fac in [2..Length(factors)] do
 	extlist  := extlisttemp;
 pcgsn1  := ShallowCopy(pcgsn2);
 od;
-## Check that extensions are correct
+## check that extensions are correct
 	extlistfinal:=[];
 	k:=0;
 	for ext in extlist do
